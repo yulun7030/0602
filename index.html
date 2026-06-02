@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>p5.js Star Game</title>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; background-color: #0a0f1e; }
+    canvas { display: block; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+  <script>
+    let stars = [];
+    // 定義星星的顏色系列
+    const palette = ['#03045e', '#023e8a', '#0077b6', '#00b4d8'];
+    let gameState = 'start'; // 記錄遊戲狀態：'start', 'playing' 或 'finished'
+    let startTime = 0;
+    let endTime = 0;
+
+    function setup() {
+      // 建立全螢幕畫布
+      createCanvas(windowWidth, windowHeight);
+      
+      initGame(); // 初始化遊戲物件
+      noCursor(); // 隱藏預設滑鼠游標
+    }
+
+    // 初始化或重置遊戲
+    function initGame() {
+      stars = [];
+      // 產生 30 顆亂數大小與位置的星星
+      for (let i = 0; i < 30; i++) {
+        let size = random(30, 80); // size 代表星星的外圓半徑
+        let x = random(size, width - size);
+        let y = random(size, height - size);
+        stars.push(new Star(x, y, size));
+      }
+      
+      // 隨機選出一顆星星作為外星人
+      let alienIndex = floor(random(stars.length));
+      stars[alienIndex].isAlien = true;
+    }
+
+    function draw() {
+      // 深色背景讓發光效果更明顯
+      background(10, 15, 30); 
+
+      if (gameState === 'start') {
+        // 畫出靜止的星星作為背景
+        for (let star of stars) {
+          star.display();
+        }
+        
+        // 半透明遮罩
+        fill(0, 180);
+        rect(0, 0, width, height);
+        
+        // 遊戲標題與規則
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(60);
+        text("尋找外星人", width / 2, height / 2 - 100);
+        
+        textSize(30);
+        text("遊戲規則：\n請使用火把在星空中尋找偽裝的星星。\n外星人被照到時會緊張流汗！\n(遊戲開始時外星人會短暫現身提示)\n請盡快找出並點擊外星人過關。", width / 2, height / 2);
+        
+        // 開始按鈕
+        drawButton("開始遊戲", width / 2, height / 2 + 130);
+        
+      } else if (gameState === 'playing') {
+        // 檢查並處理星星之間的碰撞反彈
+        checkCollisions();
+
+        // 更新並顯示所有星星
+        for (let star of stars) {
+          star.update();
+          star.display();
+        }
+      } else if (gameState === 'finished') {
+        // 遊戲結束，不再更新位置
+        for (let star of stars) {
+          star.display();
+        }
+        
+        // 畫上黑色半透明遮罩
+        fill(0, 180);
+        rect(0, 0, width, height);
+        
+        // 顯示通關訊息
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(60);
+        text("抓到外星人了！", width / 2, height / 2 - 40);
+        
+        textSize(35);
+        let timeTaken = ((endTime - startTime) / 1000).toFixed(2);
+        text("總耗時: " + timeTaken + " 秒", width / 2, height / 2 + 40);
+
+        // 再玩一次按鈕
+        drawButton("再玩一次", width / 2, height / 2 + 120);
+      }
+      
+      // 在最上層畫出火把游標
+      drawTorch();
+    }
+
+    // 點擊事件：檢查是否點中外星人
+    function mousePressed() {
+      let btnX = width / 2;
+      
+      if (gameState === 'start') {
+        let btnY = height / 2 + 130;
+        // 判斷是否點擊開始按鈕 (寬200 高60)
+        if (abs(mouseX - btnX) < 100 && abs(mouseY - btnY) < 30) {
+          gameState = 'playing';
+          startTime = millis();
+        }
+      } else if (gameState === 'playing') {
+        for (let star of stars) {
+          if (star.isHover && star.isAlien) {
+            gameState = 'finished';
+            endTime = millis();
+            break;
+          }
+        }
+      } else if (gameState === 'finished') {
+        let btnY = height / 2 + 120;
+        // 判斷是否點擊再玩一次按鈕
+        if (abs(mouseX - btnX) < 100 && abs(mouseY - btnY) < 30) {
+          initGame();
+          gameState = 'playing';
+          startTime = millis();
+        }
+      }
+    }
+    
+    // 繪製 UI 按鈕
+    function drawButton(label, x, y) {
+      push();
+      rectMode(CENTER);
+      let btnW = 200;
+      let btnH = 60;
+      let isBtnHover = abs(mouseX - x) < btnW / 2 && abs(mouseY - y) < btnH / 2;
+      
+      fill(isBtnHover ? '#00b4d8' : '#023e8a');
+      stroke(255);
+      strokeWeight(2);
+      rect(x, y, btnW, btnH, 10);
+      
+      noStroke();
+      fill(255);
+      textSize(24);
+      textAlign(CENTER, CENTER);
+      text(label, x, y);
+      pop();
+    }
+
+    // 繪製火把游標
+    function drawTorch() {
+      push();
+      translate(mouseX, mouseY);
+      // 火把的光暈
+      drawingContext.shadowBlur = 40;
+      drawingContext.shadowColor = color(255, 150, 0, 200);
+      // 火把木柄
+      fill('#8B4513');
+      noStroke();
+      rect(-4, 0, 8, 30, 2);
+      // 火焰 (重疊的三角形與圓形)
+      fill(255, 100, 0, 200); // 橘紅
+      triangle(-10, 0, 10, 0, 0, -25);
+      fill(255, 200, 0, 220); // 金黃
+      triangle(-6, 0, 6, 0, 0, -15);
+      fill(255, 255, 200);    // 亮白
+      ellipse(0, -3, 6, 8);
+      drawingContext.shadowBlur = 0; // 關閉光暈
+      pop();
+    }
+
+    // 確保視窗縮放時維持全螢幕
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+
+    // ==========================================
+    // 檢查星星之間的碰撞 (彈性碰撞)
+    // ==========================================
+    function checkCollisions() {
+      for (let i = 0; i < stars.length; i++) {
+        for (let j = i + 1; j < stars.length; j++) {
+          let s1 = stars[i];
+          let s2 = stars[j];
+          let dx = s2.x - s1.x;
+          let dy = s2.y - s1.y;
+          let distance = Math.sqrt(dx * dx + dy * dy);
+          let minDist = s1.outerRadius + s2.outerRadius;
+
+          if (distance < minDist) {
+            // 避免距離為 0 造成除以 0 的錯誤
+            if (distance === 0) distance = 0.01;
+
+            // 1. 位置修正：將兩顆星星推開，避免卡住黏在一起
+            let overlap = minDist - distance;
+            let nx = dx / distance;
+            let ny = dy / distance;
+            
+            // 根據半徑大小當作質量比例
+            let m1 = s1.outerRadius;
+            let m2 = s2.outerRadius;
+            let totalM = m1 + m2;
+            
+            s1.x -= nx * overlap * (m2 / totalM);
+            s1.y -= ny * overlap * (m2 / totalM);
+            s2.x += nx * overlap * (m1 / totalM);
+            s2.y += ny * overlap * (m1 / totalM);
+
+            // 2. 速度修正：2D 彈性碰撞公式
+            let dvx = s1.vx - s2.vx;
+            let dvy = s1.vy - s2.vy;
+            let normX = s1.x - s2.x; // s1 到 s2 的反向向量
+            let normY = s1.y - s2.y;
+            
+            let dotProduct = dvx * normX + dvy * normY;
+            
+            // 確保兩者是相向運動才發生反彈，避免持續抖動
+            if (dotProduct > 0) {
+              let coefficient = (2 * dotProduct) / (totalM * (normX * normX + normY * normY));
+              s1.vx -= coefficient * m2 * normX;
+              s1.vy -= coefficient * m2 * normY;
+              s2.vx += coefficient * m1 * normX;
+              s2.vy += coefficient * m1 * normY;
+            }
+          }
+        }
+      }
+    }
+
+    // ==========================================
+    // 定義 Star (星星) 類別
+    // ==========================================
+    class Star {
+      constructor(x, y, size) {
+        this.x = x;
+        this.y = y;
+        this.outerRadius = size;
+        this.innerRadius = size / 2.5; // 星星內凹的半徑
+        this.color = random(palette); // 亂數挑選顏色
+        
+        // 隨機產生初始速度向量
+        this.vx = random(-3, 3);
+        this.vy = random(-3, 3);
+
+        // 眼睛與眼球的基礎大小
+        this.eyeBaseSize = size * 0.4;
+        this.pupilBaseSize = size * 0.2;
+
+        // 是否為外星人標記
+        this.isAlien = false;
+      }
+
+      update() {
+        // 判斷滑鼠是否靠近
+        let d = dist(mouseX, mouseY, this.x, this.y);
+        this.isHover = d < this.outerRadius;
+        
+        if (this.isHover) {
+          // 滑鼠靠近時加速逃跑 (在原有方向上疊加速度)
+          this.vx *= 1.05;
+          this.vy *= 1.05;
+          // 限制最高速度避免飛太快破壞物理碰撞或飛出畫面
+          let speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > 12) {
+            this.vx = (this.vx / speed) * 12;
+            this.vy = (this.vy / speed) * 12;
+          }
+        }
+
+        // 更新座標位置
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // 檢測螢幕左右邊界反彈
+        if (this.x - this.outerRadius < 0 || this.x + this.outerRadius > width) {
+          this.vx *= -1; // 翻轉 X 軸速度
+          this.x = constrain(this.x, this.outerRadius, width - this.outerRadius); // 強制將星星留在畫面內
+        }
+        // 檢測螢幕上下邊界反彈
+        if (this.y - this.outerRadius < 0 || this.y + this.outerRadius > height) {
+          this.vy *= -1; // 翻轉 Y 軸速度
+          this.y = constrain(this.y, this.outerRadius, height - this.outerRadius); // 強制將星星留在畫面內
+        }
+      }
+
+      display() {
+        push();
+        translate(this.x, this.y);
+
+        let isHover = this.isHover;
+
+        // 1. 畫出星星本體與發光效果
+        drawingContext.shadowBlur = 25; // 發光模糊程度
+        drawingContext.shadowColor = color(255, 255, 255, 150); // 白色光暈
+        
+        fill(this.color);
+        noStroke();
+        
+        // 利用極座標繪製五角星
+        beginShape();
+        let npoints = 5;
+        let angle = TWO_PI / npoints;
+        let halfAngle = angle / 2.0;
+        // 將起始角度轉 -PI/2，讓星星尖端朝上
+        for (let a = -PI / 2; a < TWO_PI - PI / 2; a += angle) {
+          let sx = cos(a) * this.outerRadius;
+          let sy = sin(a) * this.outerRadius;
+          vertex(sx, sy);
+          sx = cos(a + halfAngle) * this.innerRadius;
+          sy = sin(a + halfAngle) * this.innerRadius;
+          vertex(sx, sy);
+        }
+        endShape(CLOSE);
+
+        // 畫完星星後關閉發光效果，以免影響眼睛與嘴巴的繪製
+        drawingContext.shadowBlur = 0;
+
+        // 2. 處理互動狀態與提示階段 (放大眼睛)
+        // 在遊戲剛開始的 1.5 秒內，外星人會強迫展現流汗表情作為提示
+        let isHintPhase = (gameState === 'playing' && (millis() - startTime < 1500));
+        let forceAlienFace = this.isAlien && isHintPhase;
+        
+        let eyeScale = (isHover || forceAlienFace) ? 1.5 : 1; 
+        let currentEyeSize = this.eyeBaseSize * eyeScale;
+        let currentPupilSize = this.pupilBaseSize * eyeScale;
+
+        // 3. 畫眼睛
+        let eyeOffsetX = this.outerRadius * 0.25; // 左右眼距中心的 X 偏移
+        let eyeOffsetY = -this.outerRadius * 0.1; // 眼睛的 Y 偏移
+
+        // 畫眼白 (題目要求顏色為 #6f1d1b)
+        fill('#6f1d1b');
+        noStroke();
+        ellipse(-eyeOffsetX, eyeOffsetY, currentEyeSize, currentEyeSize); // 左眼
+        ellipse(eyeOffsetX, eyeOffsetY, currentEyeSize, currentEyeSize);  // 右眼
+
+        // 計算眼球追蹤滑鼠的角度
+        let trackLeftAngle = atan2(mouseY - (this.y + eyeOffsetY), mouseX - (this.x - eyeOffsetX));
+        let trackRightAngle = atan2(mouseY - (this.y + eyeOffsetY), mouseX - (this.x + eyeOffsetX));
+
+        // 限制眼球的移動範圍，避免黑眼球超出眼眶
+        let maxPupilMove = (currentEyeSize - currentPupilSize) / 2.5;
+
+        // 左眼球座標
+        let pLeftX = -eyeOffsetX + cos(trackLeftAngle) * maxPupilMove;
+        let pLeftY = eyeOffsetY + sin(trackLeftAngle) * maxPupilMove;
+        
+        // 右眼球座標
+        let pRightX = eyeOffsetX + cos(trackRightAngle) * maxPupilMove;
+        let pRightY = eyeOffsetY + sin(trackRightAngle) * maxPupilMove;
+
+        // 畫黑眼球
+        fill(0); // 黑色
+        ellipse(pLeftX, pLeftY, currentPupilSize, currentPupilSize);
+        ellipse(pRightX, pRightY, currentPupilSize, currentPupilSize);
+
+        // 4. 畫嘴巴
+        let mouthY = this.outerRadius * 0.2;
+        
+        if (isHover || forceAlienFace) {
+          if (this.isAlien) {
+            // 外星人被發現：緊張一字形嘴巴與流汗
+            fill(0);
+            noStroke();
+            ellipse(0, mouthY, this.outerRadius * 0.2, this.outerRadius * 0.1);
+            
+            // 畫水藍色汗滴
+            push();
+            translate(this.outerRadius * 0.35, -this.outerRadius * 0.15);
+            fill('#87CEFA');
+            ellipse(0, 3, 6, 8);
+            triangle(-3, 3, 3, 3, 0, -5);
+            pop();
+          } else {
+            // 一般星星：圓形驚嚇嘴巴
+            fill(0);
+            noStroke();
+            ellipse(0, mouthY + 5, this.outerRadius * 0.35, this.outerRadius * 0.45);
+          }
+        } else {
+          // 正常狀態：圓弧笑臉
+          noFill();
+          stroke(0); // 黑色微笑線條
+          strokeWeight(3);
+          // arc(x, y, w, h, startAngle, endAngle)
+          arc(0, mouthY, this.outerRadius * 0.5, this.outerRadius * 0.4, 0, PI);
+        }
+
+        pop(); // 恢復畫布狀態，避免影響下一顆星星
+      }
+    }
+  </script>
+</body>
+</html>
